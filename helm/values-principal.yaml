@@ -1,0 +1,13 @@
+image:
+  repository: "quay.io/argoprojlabs/argocd-agent"
+  tag: "v0.10.0"
+service:
+  type: LoadBalancer
+principal:
+  listen:
+    host: "0.0.0.0"
+  namespace: "argocd"
+  auth: "mtls:CN=([^,]+)"
+  tls:
+    clientCert:
+      require: true
