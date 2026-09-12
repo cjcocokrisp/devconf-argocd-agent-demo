@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emulatorjs-deployment
+  labels:
+    app: emulatorjs
+spec:
+  selector:
+    matchLabels:
+      app: emulatorjs
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: emulatorjs
+    spec:
+      containers:
+        - name: emulatorjs
+          image: linuxserver/emulatorjs:1.8.9
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+            - containerPort: 3000
+              name: admin
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: emulatorjs-data
