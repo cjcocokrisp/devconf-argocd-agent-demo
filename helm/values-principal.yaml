@@ -11,3 +11,4 @@ principal:
   tls:
     clientCert:
       require: true
+  destinationBasedMapping: true
