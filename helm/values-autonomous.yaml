@@ -5,5 +5,3 @@ server: "192.168.1.202"
 serverPort: "443"
 agentMode: "autonomous"
 auth: "mtls:agent-autonomous"
-destinationBasedMapping: true
-createNamespace: true

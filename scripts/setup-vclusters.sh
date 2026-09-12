@@ -13,6 +13,7 @@ MANAGED_CONTEXT="vcluster-managed"
 AUTONOMOUS_CONTEXT="vcluster-autonomous"
 
 HELM_VALUES_DIR=${HELM_VALUES_DIR:-helm}
+RBAC_DIR=${RBAC_DIR:-manifests/rbac}
 
 ARGOCD_AGENT_REF_BRANCH=${ARGOCD_AGENT_REF_BRANCH:-v0.10.0}
 
@@ -57,15 +58,21 @@ helm install argocd-agent-principal \
 
 kubectl patch svc -n argocd -p '{"spec": {"type": "LoadBalancer"}}' argocd-server
 
+│kubectl patch configmap argocd-cmd-params-cm -n argocd \
+  --context "$PRINCIPAL_CONTEXT" \
+  --patch '{"data":{"redis.server":"argocd-agent-redis-proxy:6379"}}'
+
+kubectl rollout restart deployment argocd-server -n argocd --context "$PRINCIPAL_CONTEXT"
+
 argocd-agentctl agent create agent-managed \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --principal-namespace argocd \
-  --resource-proxy-server 192.168.1.202:9090
+  --resource-proxy-server argocd-agent-resource-proxy.argocd.svc.cluster.local:9090
 
 argocd-agentctl agent create agent-autonomous \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --principal-namespace argocd \
-  --resource-proxy-server "${PRINCIPAL_IP}:9090"
+  --resource-proxy-server argocd-agent-resource-proxy.argocd.svc.cluster.local:9090"
 
 kubectl config use-context default
 
@@ -122,5 +129,9 @@ helm install argocd-agent \
   --kube-context="$AUTONOMOUS_CONTEXT" \
   --namespace argocd \
   -f "${HELM_VALUES_DIR}/values-autonomous.yaml"
+
+# Replace Agent RBAC for resource proxy
+kubectl apply -f "${RBAC_DIR}/clusterrole.yaml" --context $MANAGED_CONTEXT
+kubectl apply -f "${RBAC_DIR}/clusterrole.yaml" --context $AUTONOMOUS_CONTEXT
 
 kubectl config use-context default
