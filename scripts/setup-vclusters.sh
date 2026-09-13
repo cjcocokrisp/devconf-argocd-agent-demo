@@ -25,6 +25,19 @@ vcluster create argocd-agent-principal -n principal --kube-config-context-name "
 
 kubectl create ns argocd --context="$PRINCIPAL_CONTEXT"
 
+kubectl apply -n argocd \
+  --server-side \
+  -k "https://github.com/argoproj-labs/argocd-agent/install/kubernetes/argo-cd/principal?ref=$ARGOCD_AGENT_REF_BRANCH" \
+  --context "$PRINCIPAL_CONTEXT"
+
+helm install argocd-agent-principal \
+  oci://ghcr.io/argoproj-labs/argocd-agent/argocd-agent-principal \
+  --kube-context="$PRINCIPAL_CONTEXT" \
+  --namespace argocd \
+  -f "${HELM_VALUES_DIR}/values-principal.yaml"
+
+PRINCIPAL_IP=$(kubectl get svc -n argocd --context "$PRINCIPAL_CONTEXT" argocd-agent-principal -o jsonpath='{.status.loadBalancer.ingress[0].ip}{.status.loadBalancer.ingress[0].hostname}')
+
 argocd-agentctl pki init \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --principal-namespace argocd
@@ -37,22 +50,13 @@ argocd-agentctl pki issue principal \
 argocd-agentctl pki issue resource-proxy \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --principal-namespace argocd \
-  --ip "127.0.0.1,$PRINCIPAL_IP"
+  --dns "argocd-agent-resource-proxy.argocd.svc.cluster.local"
 
 argocd-agentctl jwt create-key \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --principal-namespace argocd
 
-kubectl apply -n argocd \
-  --server-side \
-  -k "https://github.com/argoproj-labs/argocd-agent/install/kubernetes/argo-cd/principal?ref=$ARGOCD_AGENT_REF_BRANCH" \
-  --context "$PRINCIPAL_CONTEXT"
-
-helm install argocd-agent-principal \
-  oci://ghcr.io/argoproj-labs/argocd-agent/argocd-agent-principal \
-  --kube-context="$PRINCIPAL_CONTEXT" \
-  --namespace argocd \
-  -f "${HELM_VALUES_DIR}/values-principal.yaml"
+kubectl rollout restart deployment argocd-agent-principal -n argocd --context "$PRINCIPAL_CONTEXT"
 
 kubectl patch svc -n argocd -p '{"spec": {"type": "LoadBalancer"}}' argocd-server
 
@@ -72,8 +76,6 @@ argocd-agentctl agent create agent-autonomous \
   --principal-namespace argocd \
   --resource-proxy-server "${PRINCIPAL_IP}:9090"
 
-PRINCIPAL_IP=$(kubectl get svc -n argocd --context "$PRINCIPAL_CONTEXT" argocd-agent-principal -o jsonpath='{.status.loadBalancer.ingress[0].ip}{.status.loadBalancer.ingress[0].hostname}')
-
 kubectl config use-context default
 
 # Create Managed Agent vcluster
@@ -88,8 +90,7 @@ argocd-agentctl pki propagate \
 
 argocd-agentctl pki issue agent agent-managed \
   --principal-context "$PRINCIPAL_CONTEXT" \
-  --agent-context "$MANAGED_CONTEXT" \
-  --agent-namespace argocd
+  --agent-context "$MANAGED_CONTEXT" \ --agent-namespace argocd
 
 kubectl apply -n argocd \
   --server-side \
@@ -100,8 +101,8 @@ helm install argocd-agent \
   oci://ghcr.io/argoproj-labs/argocd-agent/argocd-agent-agent \
   --kube-context="$MANAGED_CONTEXT" \
   --namespace argocd \
-  --set "server=${PRINCIPAL_IP}"
--f "${HELM_VALUES_DIR}/values-managed.yaml"
+  --set "server=${PRINCIPAL_IP}" \
+  -f "${HELM_VALUES_DIR}/values-managed.yaml"
 
 kubectl config use-context default
 
@@ -129,8 +130,8 @@ helm install argocd-agent \
   oci://ghcr.io/argoproj-labs/argocd-agent/argocd-agent-agent \
   --kube-context="$AUTONOMOUS_CONTEXT" \
   --namespace argocd \
-  --set "server=${PRINCIPAL_IP}"
--f "${HELM_VALUES_DIR}/values-autonomous.yaml"
+  --set "server=${PRINCIPAL_IP}" \
+  -f "${HELM_VALUES_DIR}/values-autonomous.yaml"
 
 # Replace Agent RBAC and set secrets for resource proxy
 kubectl apply -f "${RBAC_DIR}/clusterrole.yaml" --context $MANAGED_CONTEXT
