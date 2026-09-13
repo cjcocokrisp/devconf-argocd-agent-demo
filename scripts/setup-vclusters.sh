@@ -24,6 +24,7 @@ ARGOCD_AGENT_REF_BRANCH=${ARGOCD_AGENT_REF_BRANCH:-v0.10.0}
 vcluster create argocd-agent-principal -n principal --kube-config-context-name "$PRINCIPAL_CONTEXT" --expose
 
 kubectl create ns argocd --context="$PRINCIPAL_CONTEXT"
+kubectl create ns agent-autonomous --context="$PRINCIPAL_CONTEXT"
 
 kubectl apply -n argocd \
   --server-side \
@@ -63,6 +64,10 @@ kubectl patch svc -n argocd -p '{"spec": {"type": "LoadBalancer"}}' argocd-serve
 kubectl patch configmap argocd-cmd-params-cm -n argocd \
   --context "$PRINCIPAL_CONTEXT" \
   --patch '{"data":{"redis.server":"argocd-agent-redis-proxy:6379"}}'
+
+kubectl patch configmap argocd-cmd-params-cm -n argocd \
+  --context "$PRINCIPAL_CONTEXT" \
+  --patch '{"data":{"application.namespaces":"*"}}'
 
 kubectl rollout restart deployment argocd-server -n argocd --context "$PRINCIPAL_CONTEXT"
 
