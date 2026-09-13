@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-emulatorjs-deployment
+  labels:
+    app: nginx-emulatorjs
+spec:
+  selector:
+    matchLabels:
+      app: nginx-emulatorjs
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx-emulatorjs
+    spec:
+      initContainers:
+        - name: fetch-rom-and-generate-certs
+          image: alpine:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              # Install curl and openssl
+              apk add --no-cache curl openssl
+
+              # Install rom
+              curl -o /data/roms/Apotris.gba https://hh3.gbdev.io/static/database-gba/entries/apotris/Apotris.gba
+
+              # Gen certs
+              openssl req -x509 -newkey rsa:2048 -nodes -keyout /data/ssl/server.key -out /data/ssl/server.crt -sha256 -days 365 -subj "/CN=localhost"
+
+          volumeMounts:
+            - name: rom-data
+              mountPath: /data/roms
+            - name: ssl-data
+              mountPath: /data/ssl
+      containers:
+        - name: nginx-emulatorjs
+          image: nginx
+          ports:
+            - containerPort: 443
+              name: https
+              protocol: TCP
+          volumeMounts:
+            - name: rom-data
+              mountPath: /var/www/html/roms
+            - name: ssl-data
+              mountPath: /etc/nginx/certs/
+            - name: config-data
+              mountPath: /etc/nginx/conf.d/nginx.conf
+              subPath: nginx.conf
+            - name: site-data
+              mountPath: /var/www/html/index.html
+              subPath: index.html
+      volumes:
+        - name: rom-data
+          emptyDir: {}
+        - name: ssl-data
+          emptyDir: {}
+        - name: config-data
+          configMap:
+            name: nginx-emulatorjs-static-content
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+        - name: site-data
+          configMap:
+            name: nginx-emulatorjs-static-content
+            items:
+              - key: index.html
+                path: index.html

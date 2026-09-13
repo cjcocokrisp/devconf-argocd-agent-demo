@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: emulatorjs-managed-example
+  name: nginx-emulatorjs-managed-example
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/cjcocokrisp/devconf-argocd-agent-demo
     targetRevision: HEAD
-    path: manifests/resources/managed
+    path: manifests/resources
   destination:
     name: agent-managed
-    namespace: emulatorjs
+    namespace: nginx-emulatorjs
   syncPolicy:
     automated:
       selfHeal: true
