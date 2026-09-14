@@ -114,19 +114,19 @@ kubectl config use-context default
 # Create Autonomous Agent vcluster
 vcluster create -n autonomous --kube-config-context-name "$AUTONOMOUS_CONTEXT" --expose argocd-agent-autonomous
 
-kubectl create ns argocd --context="$AUTONOMOUS_CONTEXT"
+kubectl create ns agent-autonomous --context="$AUTONOMOUS_CONTEXT"
 
 argocd-agentctl pki propagate \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --agent-context "$AUTONOMOUS_CONTEXT" \
-  --agent-namespace argocd
+  --agent-namespace agent-autonomous
 
 argocd-agentctl pki issue agent agent-autonomous \
   --principal-context "$PRINCIPAL_CONTEXT" \
   --agent-context "$AUTONOMOUS_CONTEXT" \
-  --agent-namespace argocd
+  --agent-namespace agent-autonomous
 
-kubectl apply -n argocd \
+kubectl apply -n agent-autonomous \
   --server-side \
   -k "https://github.com/argoproj-labs/argocd-agent/install/kubernetes/argo-cd/agent-autonomous?ref=$ARGOCD_AGENT_REF_BRANCH" \
   --context "$AUTONOMOUS_CONTEXT"
@@ -134,9 +134,12 @@ kubectl apply -n argocd \
 helm install argocd-agent \
   oci://ghcr.io/argoproj-labs/argocd-agent/argocd-agent-agent \
   --kube-context="$AUTONOMOUS_CONTEXT" \
-  --namespace argocd \
+  --namespace agent-autonomous \
   --set "server=${PRINCIPAL_IP}" \
   -f "${HELM_VALUES_DIR}/values-autonomous.yaml"
+
+kubectl patch clusterrolebinding argocd-application-controller --type='json' -p='[{"op": "replace", "path": "/subjects/0/namespace", "value": "agent-autonomous"}]' --context "$AUTONOMOUS_CONTEXT"
+kubectl rollout restart statefulset argocd-application-controller -n agent-autonomous --context "$AUTONOMOUS_CONTEXT"
 
 # Replace Agent RBAC and set secrets for resource proxy
 kubectl apply -f "${RBAC_DIR}/clusterrole.yaml" --context $MANAGED_CONTEXT

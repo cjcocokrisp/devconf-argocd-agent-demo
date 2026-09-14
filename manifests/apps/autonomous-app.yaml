@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: nginx-emulatorjs-autonomous
-  namespace: argocd
+  namespace: agent-autonomous
 spec:
   project: autonomous-project
   source:
